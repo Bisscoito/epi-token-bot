@@ -1,3 +1,24 @@
+import sys
+import logging
+
+# Configura logs detalhados
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+try:
+    # Seu código atual aqui
+    from telebot import TeleBot
+    import os
+    
+    TOKEN = os.environ['EPI_TOKEN']  # Linha 8 que está falhando
+    bot = TeleBot(TOKEN)
+    
+except Exception as e:
+    logger.error(f"Falha crítica na inicialização: {e}")
+    sys.exit(1)  # Força saída com erro
 from telebot import types
 import re
 
