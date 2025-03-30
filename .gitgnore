@@ -1,0 +1,11 @@
+# Arquivos sensíveis
+.env
+*.db
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+
+# Editor/IDE
+.vscode/
+.idea/
