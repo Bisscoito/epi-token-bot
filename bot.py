@@ -39,7 +39,13 @@ def save_email(message):
 
 @bot.message_handler(func=lambda msg: msg.text == '📊 Saldo')
 def show_balance(message):
-    bot.send_message(message.chat.id, "💰 *Saldo atual:* 100 MOB", parse_mode='Markdown')
+    # Resposta temporária - saldo zerado
+    bot.send_message(
+        message.chat.id, 
+        "💰 *Saldo atual:* 0 MOB\n\n"
+        "_A integração com a blockchain está em desenvolvimento_ 🛠️",
+        parse_mode='Markdown'
+    )
 
 if __name__ == "__main__":
     print("🤖 Bot MobileCoin Miner Ativo!")
