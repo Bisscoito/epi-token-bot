@@ -1,83 +1,81 @@
-from telebot import types
-import re
+import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from dotenv import load_dotenv
+from web3 import Web3
+import os
+import json
 
-# Dicionário temporário (substitua por banco de dados depois)
-user_data = {}
+# Configuração
+load_dotenv()
+TOKEN = os.getenv('TELEGRAM_TOKEN')
+bot = telebot.TeleBot(TOKEN)
 
-# Handler para o comando Ajuda
-@bot.message_handler(func=lambda msg: msg.text == 'ℹ️ Ajuda')
-def show_help(message):
-    help_text = (
-        "🆘 *Ajuda*\n\n"
-        "👤 Cadastro: Registre-se no sistema\n"
-        "⛏️ Minerador: Acesse o minerador MobileCoin\n"
-        "📊 Saldo: Consulte seu saldo\n"
-        "💸 Saque: Solicite saque de MOB"
-    )
-    bot.send_message(message.chat.id, help_text, parse_mode='Markdown')
+# Conexão com Polygon
+w3 = Web3(Web3.HTTPProvider('https://polygon-rpc.com'))
+CONTRACT_ADDRESS = '0xSeuContrato'  # Substitua pelo seu contrato
+PRIVATE_KEY = os.getenv('PRIVATE_KEY')  # Chave da carteira do bot
 
-# Handler para Cadastro
-@bot.message_handler(func=lambda msg: msg.text == '👤 Cadastro')
-def start_registration(message):
-    if str(message.chat.id) in user_data:
-        bot.send_message(message.chat.id, "✅ Você já está cadastrado!")
-        return
-    
-    msg = bot.send_message(
-        message.chat.id,
-        "📝 *Cadastro*\n\nPor favor, digite seu e-mail válido:",
-        parse_mode='Markdown'
-    )
-    bot.register_next_step_handler(msg, process_email_step)
-
-def process_email_step(message):
-    # Se usuário desistir e clicar em Ajuda
-    if message.text == 'ℹ️ Ajuda':
-        show_help(message)
-        return
-    
-    # Validação básica de e-mail
-    if not re.match(r"[^@]+@[^@]+\.[^@]+", message.text):
-        msg = bot.send_message(
-            message.chat.id,
-            "❌ E-mail inválido. Por favor, digite novamente:"
-        )
-        bot.register_next_step_handler(msg, process_email_step)
-        return
-    
-    # Salva os dados temporariamente
-    user_data[str(message.chat.id)] = {
-        'email': message.text,
-        'telegram_name': message.from_user.first_name,
-        'wallet': None  # Será preenchido depois
+# ABI do Contrato (simplificado)
+CONTRACT_ABI = json.loads('''[
+    {
+        "inputs": [
+            {"name": "amount", "type": "uint256"}
+        ],
+        "name": "deposit",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
     }
-    
-    # Pede a carteira MOB
-    msg = bot.send_message(
-        message.chat.id,
-        "🔑 Agora digite seu endereço da carteira MobileCoin:",
-        parse_mode='Markdown'
-    )
-    bot.register_next_step_handler(msg, process_wallet_step)
+]''')
 
-def process_wallet_step(message):
-    # Validação básica de carteira (adaptar para MOB)
-    if len(message.text) < 10:  # Exemplo simples
-        msg = bot.send_message(
-            message.chat.id,
-            "❌ Carteira inválida. Digite novamente:"
-        )
-        bot.register_next_step_handler(msg, process_wallet_step)
-        return
-    
-    # Completa o cadastro
-    user_data[str(message.chat.id)]['wallet'] = message.text
-    
+contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=CONTRACT_ABI)
+
+# Teclado
+def deposit_keyboard():
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton("🔗 Ver no PolygonScan", url=f"https://polygonscan.com/address/{CONTRACT_ADDRESS}")
+    )
+    return markup
+
+@bot.message_handler(commands=['start'])
+def start(message):
     bot.send_message(
         message.chat.id,
-        f"✅ *Cadastro completo!*\n\n"
-        f"👤 Nome: {user_data[str(message.chat.id)]['telegram_name']}\n"
-        f"📧 E-mail: {user_data[str(message.chat.id)]['email']}\n"
-        f"💰 Carteira: `{user_data[str(message.chat.id)]['wallet']}`",
-        parse_mode='Markdown'
+        "💰 *Depósito Real na Polygon* 💰\n\n"
+        "Envie o valor em MATIC que deseja depositar:",
+        parse_mode="Markdown"
     )
+
+@bot.message_handler(func=lambda m: True)
+def handle_deposit(message):
+    try:
+        amount = float(message.text)
+        wei_amount = w3.to_wei(amount, 'ether')
+        
+        # Prepara transação
+        tx = contract.functions.deposit(wei_amount).build_transaction({
+            'chainId': 137,
+            'gas': 200000,
+            'gasPrice': w3.to_wei('50', 'gwei'),
+            'nonce': w3.eth.get_transaction_count(w3.eth.account.from_key(PRIVATE_KEY).address),
+            'value': wei_amount
+        })
+        
+        # Assina e envia
+        signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        
+        bot.send_message(
+            message.chat.id,
+            f"✅ *{amount} MATIC depositados!*\n"
+            f"Tx Hash: `{tx_hash.hex()}`",
+            parse_mode="Markdown",
+            reply_markup=deposit_keyboard()
+        )
+    
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Erro: {str(e)}")
+
+if __name__ == '__main__':
+    bot.polling()
