@@ -34,7 +34,7 @@ contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=CONTRACT_ABI)
 def deposit_keyboard():
     markup = InlineKeyboardMarkup()
     markup.add(
-        InlineKeyboardButton("🔗 Ver no PolygonScan", url=f"https://polygonscan.com/address/{CONTRACT_ADDRESS}")
+        InlineKeyboardButton("Ver no PolygonScan", url=f"https://polygonscan.com/address/{CONTRACT_ADDRESS}")
     )
     return markup
 
@@ -42,7 +42,7 @@ def deposit_keyboard():
 def start(message):
     bot.send_message(
         message.chat.id,
-        "💰 *Depósito Real na Polygon* 💰\n\n"
+        "Depósito Real na Polygon\n\n"
         "Envie o valor em MATIC que deseja depositar:",
         parse_mode="Markdown"
     )
@@ -50,9 +50,16 @@ def start(message):
 @bot.message_handler(func=lambda m: True)
 def handle_deposit(message):
     try:
+        # Valida que a mensagem é numérica
         amount = float(message.text)
-        wei_amount = w3.to_wei(amount, 'ether')
         
+        if amount <= 0:
+            bot.send_message(message.chat.id, "❌ Valor inválido. Por favor, envie um valor maior que zero.")
+            return
+
+        # Converte MATIC para Wei
+        wei_amount = w3.to_wei(amount, 'ether')
+
         # Prepara transação
         tx = contract.functions.deposit(wei_amount).build_transaction({
             'chainId': 137,
@@ -61,11 +68,11 @@ def handle_deposit(message):
             'nonce': w3.eth.get_transaction_count(w3.eth.account.from_key(PRIVATE_KEY).address),
             'value': wei_amount
         })
-        
+
         # Assina e envia
         signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
         tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        
+
         bot.send_message(
             message.chat.id,
             f"✅ *{amount} MATIC depositados!*\n"
@@ -73,9 +80,12 @@ def handle_deposit(message):
             parse_mode="Markdown",
             reply_markup=deposit_keyboard()
         )
-    
+
+    except ValueError:
+        bot.send_message(message.chat.id, "❌ Erro: Por favor, envie um valor numérico válido.")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Erro: {str(e)}")
 
 if __name__ == '__main__':
     bot.polling()
+
