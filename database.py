@@ -27,7 +27,7 @@ def process_email_step(message):
     
     msg = bot.send_message(
         message.chat.id,
-        "🔑 Agora digite seu endereço da carteira MobileCoin:",
+        "🔑 Agora digite seu endereço da carteira ERC-20:",
         parse_mode='Markdown'
     )
     # Armazena temporariamente o email
